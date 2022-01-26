@@ -12,6 +12,9 @@ cd $tmpdir
 # locker dirs
 lockerdirs="etc/package-locker/ usr/local/etc/package-locker/ usr/local/share/package-locker/ usr/share/package-locker/ var/package-locker/"
 
+# remove original package if installed
+sudo rpm -e $1
+
 # create the build files
 echo "Creating files..."
 files=""
