@@ -103,7 +103,7 @@ fi
  
 # install the rpm
 echo "Installing RPM $1..."
-#sudo rpm -ivh "$tmpdir"/rpmbuild/RPMS/noarch/* --quiet
+sudo rpm -ivh "$tmpdir"/rpmbuild/RPMS/noarch/* --quiet
 
 # make files immutable
 echo "Making files immutable..."
