@@ -117,10 +117,10 @@ done
 # prevent updating the package
 echo "Fixing /etc/dnf/dnf.conf..."
 if [[ $(grep "^exclude" /etc/dnf/dnf.conf > /dev/null; echo $?) == *1* ]]; then
-	echo "exclude=$1*" | sudo tee -a /etc/dnf/dnf.conf > /dev/null
+	echo "excludepkgs=$1*" | sudo tee -a /etc/dnf/dnf.conf > /dev/null
 else
 	# idk how this sed works
-	sed '/^exclude/s/$/ '$1'*/' /etc/dnf/dnf.conf | sudo tee /etc/dnf/dnf.conf > /dev/null
+	sed '/^excludepkgs/s/$/ '$1'*/' /etc/dnf/dnf.conf | sudo tee /etc/dnf/dnf.conf > /dev/null
 fi
 
 # clean up and return to starting directory
