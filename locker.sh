@@ -5,33 +5,36 @@
 
 returndir="$(pwd)" # cd back after script is done
 
+# install the package - required for file type checking
+# assuming it's on repos
+echo "Installing original package..."
+sudo dnf install "$1"
+
 # create a tmp directory for working
 tmpdir=$(mktemp -d)
 cd $tmpdir
 
-# locker dirs
-lockerdirs="etc/package-locker/ usr/local/etc/package-locker/ usr/local/share/package-locker/ usr/share/package-locker/ var/package-locker/"
-
-# remove original package if installed
-sudo rpm -e $1
-
 # create the build files
 echo "Creating files..."
 files=""
-for dir in $lockerdirs; do
-	i=0
-	while [[ $i -lt 10 ]]; do
-		files="$files ${dir}${1}-${i}" # creates a file in locker directory $dir named $1-$i (the package name and a number from 0 to 9)
-		((i++))
-	done
+dirs=""
+for file in $(rpm -ql $1); do
+	if [[ -d $file ]]; then
+		dirs="$dirs ${file:1}"
+	elif [[ -f $file ]]; then
+		if ! [[ "$file" =~ "^(\/usr)?\/lib(64)?\/[^\/]*$" ]]; then # regex checking so we don't create empty files in directories where they're complained about (ex. /usr/lib)
+			files="$files ${file:1}"
+		fi
+	fi
 done
 
 mkdir -p files/${1}-1.0.0 # create a files directory for the tar.gz
 cd files/${1}-1.0.0
 
-for dir in $lockerdirs; do mkdir -p $dir; done # make dirs
+for dir in $dirs; do mkdir -p $dir; done # make dirs
 
 for file in $files; do # this actually makes the files
+	mkdir -p $(dirname $file)
 	touch $file
 done
 
@@ -43,7 +46,7 @@ cd ..
 
 # create files list for the files section of the rpm config file, just the same thing but with newlines
 fileslist=""
-for file in $files; do
+for file in $files $dirs; do
 	fileslist="${fileslist}
 /${file}"
 done
@@ -76,11 +79,12 @@ This package blocks the installation of package $1.
 
 %install
 rm -rf \$RPM_BUILD_ROOT
-for dir in ${lockerdirs}; do
+for dir in ${dirs}; do
 	mkdir -p \$RPM_BUILD_ROOT/\$dir
 done
 
 for file in ${files}; do
+	mkdir -p \$RPM_BUILD_ROOT/\$(dirname \$file)
 	cp \$file \$RPM_BUILD_ROOT/\$file
 done
 
@@ -103,6 +107,10 @@ if ! [[ $answer == [Yy]* ]]; then
 	cd "$returndir"
 	exit 0
 fi
+
+# delete original package
+echo "Removing original package..."
+sudo rpm -e "$1"
  
 # install the rpm
 echo "Installing RPM $1..."
@@ -119,8 +127,11 @@ echo "Fixing /etc/dnf/dnf.conf..."
 if [[ $(grep "^exclude" /etc/dnf/dnf.conf > /dev/null; echo $?) == *1* ]]; then
 	echo "excludepkgs=$1*" | sudo tee -a /etc/dnf/dnf.conf > /dev/null
 else
-	# idk how this sed works
-	sed '/^excludepkgs/s/$/ '$1'*/' /etc/dnf/dnf.conf | sudo tee /etc/dnf/dnf.conf > /dev/null
+	# check if /etc/dnf/dnf.conf was already written to
+	if [[ $(grep "$1" /etc/dnf/dnf.conf > /dev/null; echo $?) == *1* ]]; then
+		# idk how this sed works
+		sed '/^excludepkgs/s/$/ '$1'*/' /etc/dnf/dnf.conf | sudo tee /etc/dnf/dnf.conf > /dev/null
+	fi
 fi
 
 # clean up and return to starting directory
